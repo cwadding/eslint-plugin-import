@@ -5,37 +5,44 @@ import minimatch from 'minimatch'
 import importType from '../core/importType'
 import isStaticRequire from '../core/staticRequire'
 
+function _parsePackageJSON(dir) {
+  return JSON.parse(_fs2.default.readFileSync(_path2.default.join(dir, 'package.json'), 'utf8'));
+}
+
 function getDependencies(context, packageDir) {
   try {
-    const packageContent = packageDir
-      ? JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
-      : readPkgUp.sync({cwd: context.getFilename(), normalize: false}).pkg
-
-    if (!packageContent) {
-      return null
-    }
-
-    return {
-      dependencies: packageContent.dependencies || {},
-      devDependencies: packageContent.devDependencies || {},
-      optionalDependencies: packageContent.optionalDependencies || {},
-      peerDependencies: packageContent.peerDependencies || {},
+    if (!packageDir) {
+      return  _readPkgUp2.default.sync({ cwd: context.getFilename(), normalize: false }).pkg;
+    } else if(typeof packageDir === 'string') {
+      return _parsePackageJSON(packageDir);
+    } else {
+      return packageDir.reduce(function (deps, dir) {
+        const packageJson = _parsePackageJSON(dir);
+        ['peer', 'optional', 'dev'].forEach(function(suffix) {
+          if (packageJson[suffix + 'Dependencies']) {
+            Object.assign(deps[suffix + 'Dependencies'], packageJson[suffix + 'Dependencies']);
+          }
+        });
+        if (packageJson.dependencies) {
+          Object.assign(deps.dependencies, packageJson.dependencies);
+        }
+        return deps;
+      }, {dependencies: {}, devDependencies: {}, optionalDependencies: {}, peerDependencies: {}});
     }
   } catch (e) {
     if (packageDir && e.code === 'ENOENT') {
       context.report({
         message: 'The package.json file could not be found.',
-        loc: { line: 0, column: 0 },
-      })
+        loc: { line: 0, column: 0 }
+      });
     }
     if (e.name === 'JSONError' || e instanceof SyntaxError) {
       context.report({
         message: 'The package.json file could not be parsed: ' + e.message,
-        loc: { line: 0, column: 0 },
-      })
+        loc: { line: 0, column: 0 }
+      });
     }
-
-    return null
+    return null;
   }
 }
 
@@ -110,7 +117,7 @@ module.exports = {
           'devDependencies': { 'type': ['boolean', 'array'] },
           'optionalDependencies': { 'type': ['boolean', 'array'] },
           'peerDependencies': { 'type': ['boolean', 'array'] },
-          'packageDir': { 'type': 'string' },
+          'packageDir': { 'type': ['string', 'array'] }
         },
         'additionalProperties': false,
       },
